@@ -94,8 +94,8 @@ WELCOME_MESSAGES = {
         "Thanks for being a member of our channel 🤝\n"
         "Follow Rolletto on our platforms and stay updated with the latest promotions, news, and rewards ✨\n\n"
         "Join our channel first:\n"
-        "👉 <a href='https://t.me/pexshvela1'>Click here to join the channel</a>\n\n"
         "Then go to the discussion group and send the word <b>bonus</b> to claim your promo code."
+        "👉 <a href='https://t.me/pexshvela1'>Click here to join the channel</a>\n\n"
     ),
     "it": (
         "👋 Benvenuto, {name}!\n\n"
