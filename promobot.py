@@ -1,13 +1,15 @@
 """
 Telegram Promo Bot
 ==================
-Requirements: python-telegram-bot>=20.0, aiosqlite
+Requirements: python-telegram-bot>=20.0, aiosqlite, python-dotenv
 """
 
 import logging
 import asyncio
 import aiosqlite
+import os
 from datetime import datetime, timezone, timedelta
+from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
@@ -18,6 +20,9 @@ from telegram.ext import (
     filters,
 )
 from telegram.error import Forbidden, BadRequest
+
+# Load environment variables
+load_dotenv()
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -31,11 +36,13 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-BOT_TOKEN: str = "8516045021:AAGN8njwEwPE8WNJnHmfiQ_RxOAyFNSvC_4"
+BOT_TOKEN: str = os.getenv("BOT_TOKEN", "")
+if not BOT_TOKEN:
+    raise ValueError("BOT_TOKEN environment variable not set")
 
 MIN_AGE_MINUTES: int = 10
 MAX_AGE_HOURS: int = 24
-DB_PATH: str = "promo_bot.db"
+DB_PATH: str = os.getenv("DATABASE_URL", "promo_bot.db")
 
 # ---------------------------------------------------------------------------
 # Channel IDs per language – replace with your real channel IDs
