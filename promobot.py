@@ -21,7 +21,7 @@ from telegram.ext import (
 )
 from telegram.error import Forbidden, BadRequest
 
-# Load environment variables
+# Load environment variables from .env file (local development)
 load_dotenv()
 
 # ---------------------------------------------------------------------------
@@ -36,8 +36,9 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-BOT_TOKEN: str = os.getenv("BOT_TOKEN", "")
+BOT_TOKEN: str = os.getenv("BOT_TOKEN", "").strip()
 if not BOT_TOKEN:
+    logger.error("BOT_TOKEN environment variable is not set. Please set it in your environment or .env file.")
     raise ValueError("BOT_TOKEN environment variable not set")
 
 MIN_AGE_MINUTES: int = 10
