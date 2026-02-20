@@ -94,7 +94,7 @@ WELCOME_MESSAGES = {
         "Thanks for being a member of our channel 🤝\n"
         "Follow Rolletto on our platforms and stay updated with the latest promotions, news, and rewards\n\n"
         "Then go to the discussion group and send the word <b>bonus</b> to claim your promo code.\n\n"
-        "✨Join our channel first:\n"
+        "✨Join our channel first:\n\n"
         "👉 <a href='https://t.me/pexshvela1'>Click here to join the channel</a>"
     ),
     "it": (
@@ -102,7 +102,7 @@ WELCOME_MESSAGES = {
         "Grazie per essere un membro del nostro canale 🤝\n"
         "Segui Rolletto sulle nostre piattaforme e rimani aggiornato con le ultime promozioni, notizie e premi\n\n"
         "Poi vai nel gruppo di discussione e invia la parola <b>bonus</b> per ricevere il tuo codice promo.\n\n"
-        "✨Unisciti prima al nostro canale:\n"
+        "✨Unisciti prima al nostro canale:\n\n"
         "👉 <a href='https://t.me/+OaMmlSD0P4A5ZTky'>Clicca qui per unirti al canale</a>"
     ),
     "fr": (
@@ -110,7 +110,7 @@ WELCOME_MESSAGES = {
         "Merci d'être membre de notre chaîne 🤝\n"
         "Suivez Rolletto sur nos plateformes et restez informé des dernières promotions, actualités et récompenses\n\n"
         "Ensuite, allez dans le groupe de discussion et envoyez le mot <b>bonus</b> pour recevoir votre code promo.\n\n"
-        "✨Rejoignez d'abord notre chaîne:\n"
+        "✨Rejoignez d'abord notre chaîne:\n\n"
         "👉 <a href='https://t.me/+DwGG1zcvdE1kZmEy'>Cliquez ici pour rejoindre la chaîne</a>"
     ),
     "mx": (
@@ -118,7 +118,7 @@ WELCOME_MESSAGES = {
         "Gracias por ser miembro de nuestro canal 🤝\n"
         "Sigue a Rolletto en nuestras plataformas y mantente al día con las últimas promociones, noticias y recompensas\n\n"
         "Luego ve al grupo de discusión y envía la palabra <b>bonus</b> para reclamar tu código promo.\n\n"
-        "✨Únete primero a nuestro canal:\n"
+        "✨Únete primero a nuestro canal:\n\n"
         "👉 <a href='https://t.me/+N762ymdQF0s1MmZi'>Haz clic aquí para unirte al canal</a>"
     ),
 }
