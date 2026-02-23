@@ -69,10 +69,10 @@ DISCUSSION_GROUP_IDS = {
 # Promo codes per language – replace with your real promo codes
 # ---------------------------------------------------------------------------
 PROMO_CODES = {
-    "en": "ENPROMOCODE",
-    "it": "PROMO-IT-2024",
-    "fr": "PROMO-FR-2024",
-    "mx": "PROMO-MX-2024",
+    "en": "PPQJDU",
+    "it": "ADJSDU",
+    "fr": "OADIDMA",
+    "mx": "ODLWDIM",
 }
 
 
