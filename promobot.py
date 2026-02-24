@@ -41,6 +41,8 @@ if not BOT_TOKEN:
     logger.error("BOT_TOKEN environment variable is not set. Please set it in your environment or .env file.")
     raise ValueError("BOT_TOKEN environment variable not set")
 
+ADMIN_ID: int = int(os.getenv("ADMIN_ID", "0"))
+
 MIN_AGE_MINUTES: int = 10
 MAX_AGE_HOURS: int = 24
 DB_PATH: str = os.getenv("DATABASE_URL", "promo_bot.db")
@@ -316,7 +318,6 @@ async def handle_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     logger.info("'bonus' received from user %s (%s)", user.id, user.full_name)
 
     # Auto-detect language based on which group the message was sent in
-    # This means it always works correctly regardless of user's saved language
     lang = next((l for l, gid in DISCUSSION_GROUP_IDS.items() if gid == chat.id), "en")
 
     # Save detected language to user's profile
@@ -370,6 +371,33 @@ async def handle_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 
 # ---------------------------------------------------------------------------
+# Stats handler – only accessible by admin
+# ---------------------------------------------------------------------------
+
+async def handle_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT COUNT(*) FROM users") as cursor:
+            total_users = (await cursor.fetchone())[0]
+        async with db.execute("SELECT COUNT(*) FROM users WHERE claimed = 1") as cursor:
+            total_claimed = (await cursor.fetchone())[0]
+        async with db.execute("SELECT language, COUNT(*) FROM users WHERE claimed = 1 GROUP BY language") as cursor:
+            by_language = await cursor.fetchall()
+
+    lang_text = "\n".join([f"  {row[0]}: {row[1]}" for row in by_language])
+
+    await update.effective_message.reply_text(
+        f"📊 <b>Bot Stats</b>\n\n"
+        f"👤 Total users: <b>{total_users}</b>\n"
+        f"🎁 Total claimed: <b>{total_claimed}</b>\n\n"
+        f"📌 Claims by language:\n{lang_text}",
+        parse_mode="HTML",
+    )
+
+
+# ---------------------------------------------------------------------------
 # Error handler
 # ---------------------------------------------------------------------------
 
@@ -387,6 +415,7 @@ async def main() -> None:
     app = Application.builder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", handle_start))
+    app.add_handler(CommandHandler("stats", handle_stats))
     app.add_handler(CallbackQueryHandler(handle_language_choice, pattern="^lang_"))
     app.add_handler(
         MessageHandler(
