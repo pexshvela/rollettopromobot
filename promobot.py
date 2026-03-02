@@ -95,32 +95,32 @@ WELCOME_MESSAGES = {
         "👋 Welcome, {name}!\n\n"
         "Thanks for being a member of our channel 🤝\n"
         "Follow Rolletto on our platforms and stay updated with the latest promotions, news, and rewards\n\n"
-        "<b>Then go to the comments and send the word \"bonus\" to claim your promo code.</b>\n\n"
-        "✨Join our channel first:\n\n"
+        "<b>Then go to the comments on any post and send the word \"bonus\" to claim your promo code.</b>\n\n"
+        "<b>✨Join our channel first:</b>\n\n"
         "👉 <a href='https://t.me/+9jS0DgDO_KI5YzYy'>Click here to join the channel</a>"
     ),
     "it": (
         "👋 Benvenuto, {name}!\n\n"
         "Grazie per essere un membro del nostro canale 🤝\n"
         "Segui Rolletto sulle nostre piattaforme e rimani aggiornato con le ultime promozioni, notizie e premi\n\n"
-        "<b>Poi vai nei commenti e invia la parola \"bonus\" per ricevere il tuo codice promo.</b>\n\n"
-        "✨Unisciti prima al nostro canale:\n\n"
+        "<b>Poi vai nei commenti di qualsiasi post e invia la parola \"bonus\" per ricevere il tuo codice promo.</b>\n\n"
+        "<b>✨Unisciti prima al nostro canale:</b>\n\n"
         "👉 <a href='https://t.me/+Fkw3DMpmZE1hYzYy'>Clicca qui per unirti al canale</a>"
     ),
     "fr": (
         "👋 Bienvenue, {name}!\n\n"
         "Merci d'être membre de notre chaîne 🤝\n"
         "Suivez Rolletto sur nos plateformes et restez informé des dernières promotions, actualités et récompenses\n\n"
-        "<b>Ensuite, allez dans les commentaires et envoyez le mot \"bonus\" pour recevoir votre code promo.</b>\n\n"
-        "✨Rejoignez d'abord notre chaîne:\n\n"
+        "<b>Ensuite, allez dans les commentaires de n'importe quel post et envoyez le mot \"bonus\" pour recevoir votre code promo.</b>\n\n"
+        "<b>✨Rejoignez d'abord notre chaîne:</b>\n\n"
         "👉 <a href='https://t.me/+-8aE5nJOGSsxZjdi'>Cliquez ici pour rejoindre la chaîne</a>"
     ),
     "mx": (
         "👋 ¡Bienvenido, {name}!\n\n"
         "Gracias por ser miembro de nuestro canal 🤝\n"
         "Sigue a Rolletto en nuestras plataformas y mantente al día con las últimas promociones, noticias y recompensas\n\n"
-        "<b>Luego ve los comentarios y envía la palabra \"bonus\" para reclamar tu código promo.</b>\n\n"
-        "✨Únete primero a nuestro canal:\n\n"
+        "<b>Luego ve los comentarios de cualquier publicación y envía la palabra \"bonus\" para reclamar tu código promo.</b>\n\n"
+        "<b>✨Únete primero a nuestro canal:</b>\n\n"
         "👉 <a href='https://t.me/+6I0ChBGTgoRmNzAy'>Haz clic aquí para unirte al canal</a>"
     ),
 }
