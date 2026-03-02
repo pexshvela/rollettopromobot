@@ -95,7 +95,7 @@ WELCOME_MESSAGES = {
         "👋 Welcome, {name}!\n\n"
         "Thanks for being a member of our channel 🤝\n"
         "Follow Rolletto on our platforms and stay updated with the latest promotions, news, and rewards\n\n"
-        "Then go to the comments and send the word <b>bonus</b> to claim your promo code.\n\n"
+        "<b>Then go to the comments and send the word \"bonus\" to claim your promo code.</b>\n\n"
         "✨Join our channel first:\n\n"
         "👉 <a href='https://t.me/+9jS0DgDO_KI5YzYy'>Click here to join the channel</a>"
     ),
@@ -103,7 +103,7 @@ WELCOME_MESSAGES = {
         "👋 Benvenuto, {name}!\n\n"
         "Grazie per essere un membro del nostro canale 🤝\n"
         "Segui Rolletto sulle nostre piattaforme e rimani aggiornato con le ultime promozioni, notizie e premi\n\n"
-        "Poi vai nei commenti e invia la parola <b>bonus</b> per ricevere il tuo codice promo.\n\n"
+        "<b>Poi vai nei commenti e invia la parola \"bonus\" per ricevere il tuo codice promo.</b>\n\n"
         "✨Unisciti prima al nostro canale:\n\n"
         "👉 <a href='https://t.me/+Fkw3DMpmZE1hYzYy'>Clicca qui per unirti al canale</a>"
     ),
@@ -111,7 +111,7 @@ WELCOME_MESSAGES = {
         "👋 Bienvenue, {name}!\n\n"
         "Merci d'être membre de notre chaîne 🤝\n"
         "Suivez Rolletto sur nos plateformes et restez informé des dernières promotions, actualités et récompenses\n\n"
-        "Ensuite, allez dans les commentaires et envoyez le mot <b>bonus</b> pour recevoir votre code promo.\n\n"
+        "<b>Ensuite, allez dans les commentaires et envoyez le mot \"bonus\" pour recevoir votre code promo.</b>\n\n"
         "✨Rejoignez d'abord notre chaîne:\n\n"
         "👉 <a href='https://t.me/+-8aE5nJOGSsxZjdi'>Cliquez ici pour rejoindre la chaîne</a>"
     ),
@@ -119,7 +119,7 @@ WELCOME_MESSAGES = {
         "👋 ¡Bienvenido, {name}!\n\n"
         "Gracias por ser miembro de nuestro canal 🤝\n"
         "Sigue a Rolletto en nuestras plataformas y mantente al día con las últimas promociones, noticias y recompensas\n\n"
-        "Luego ve los comentarios y envía la palabra <b>bonus</b> para reclamar tu código promo.\n\n"
+        "<b>Luego ve los comentarios y envía la palabra \"bonus\" para reclamar tu código promo.</b>\n\n"
         "✨Únete primero a nuestro canal:\n\n"
         "👉 <a href='https://t.me/+6I0ChBGTgoRmNzAy'>Haz clic aquí para unirte al canal</a>"
     ),
@@ -163,10 +163,10 @@ BONUS_MESSAGES = {
         "mx": "✅ Código promo enviado a tus mensajes directos.",
     },
     "promo_dm": {
-        "en": "🎉 Congratulations! Here is your exclusive promo code:\n\n<code>{code}</code>\n\nUse it before it expires. Enjoy!",
-        "it": "🎉 Congratulazioni! Ecco il tuo codice promo esclusivo:\n\n<code>{code}</code>\n\nUsalo prima che scada. Buon divertimento!",
-        "fr": "🎉 Félicitations! Voici votre code promo exclusif:\n\n<code>{code}</code>\n\nUtilisez-le avant qu'il n'expire. Profitez-en!",
-        "mx": "🎉 ¡Felicidades! Aquí está tu código promo exclusivo:\n\n<code>{code}</code>\n\nÚsalo antes de que expire. ¡Disfrútalo!",
+    "en": "🎉 Congratulations! Here is your exclusive promo code:\n\n<code>{code}</code>\n\n<b>Requirements: Your email must be verified in order to claim this bonus.</b>\n\n<b>Additionally, if you have not verified your email yet, you will receive free spins once your verification is completed.</b>\n\nUse it before it expires. Enjoy!",
+    "it": "🎉 Congratulazioni! Ecco il tuo codice promo esclusivo:\n\n<code>{code}</code>\n\n<b>Requisiti: La tua email deve essere verificata per poter richiedere questo bonus.</b>\n\n<b>Inoltre, se non hai ancora verificato la tua email, riceverai i giri gratuiti una volta completata la verifica.</b>\n\nUsalo prima che scada. Buon divertimento!",
+    "fr": "🎉 Félicitations! Voici votre code promo exclusif:\n\n<code>{code}</code>\n\n<b>Conditions: Votre adresse e-mail doit être vérifiée pour pouvoir bénéficier de ce bonus.</b>\n\n<b>De plus, si vous n'avez pas encore vérifié votre e-mail, vous recevrez des tours gratuits une fois la vérification effectuée.</b>\n\nUtilisez-le avant qu'il n'expire. Profitez-en!",
+    "mx": "🎉 ¡Felicidades! Aquí está tu código promo exclusivo:\n\n<code>{code}</code>\n\n<b>Requisitos: Tu correo electrónico debe estar verificado para poder reclamar este bono.</b>\n\n<b>Además, si aún no has verificado tu correo, recibirás giros gratis una vez que se complete la verificación.</b>\n\nÚsalo antes de que expire. ¡Disfrútalo!",
     },
 }
 
