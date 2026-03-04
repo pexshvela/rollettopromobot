@@ -141,10 +141,10 @@ LANG_SELECT_TEXT = (
 )
 
 ASK_USERNAME_MESSAGES = {
-    "en": "Please send me your Rolletto username separately in one text message.",
-    "it": "Per favore inviami il tuo nome utente Rolletto in un messaggio di testo separato.",
-    "fr": "Veuillez m'envoyer votre nom d'utilisateur Rolletto dans un message séparé.",
-    "mx": "Por favor envíame tu nombre de usuario de Rolletto en un mensaje de texto por separado.",
+    "en": "Please paste your Rolletto username separately in one text message.",
+    "it": "Per favore incolla il tuo nome utente Rolletto separatamente in un unico messaggio di testo.",
+    "fr": "Veuillez coller votre nom d'utilisateur Rolletto séparément dans un seul message.",
+    "mx": "Por favor pega tu nombre de usuario de Rolletto por separado en un solo mensaje de texto.",
 }
 
 WELCOME_MESSAGES = {
