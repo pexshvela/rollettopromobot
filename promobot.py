@@ -1,21 +1,25 @@
 """
 Telegram Promo Bot
 ==================
-Requirements: python-telegram-bot>=20.0, aiosqlite, python-dotenv
+Requirements: python-telegram-bot>=20.0, aiosqlite, python-dotenv, gspread, google-auth
 """
 
 import logging
 import asyncio
 import aiosqlite
 import os
+import json
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
+import gspread
+from google.oauth2.service_account import Credentials
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
     CommandHandler,
     MessageHandler,
     CallbackQueryHandler,
+    ConversationHandler,
     ContextTypes,
     filters,
 )
@@ -38,17 +42,59 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 BOT_TOKEN: str = os.getenv("BOT_TOKEN", "").strip()
 if not BOT_TOKEN:
-    logger.error("BOT_TOKEN environment variable is not set. Please set it in your environment or .env file.")
     raise ValueError("BOT_TOKEN environment variable not set")
 
 ADMIN_ID: int = int(os.getenv("ADMIN_ID", "0"))
-
 MIN_AGE_MINUTES: int = 10
 MAX_AGE_HOURS: int = 24
 DB_PATH: str = os.getenv("DATABASE_URL", "promo_bot.db")
 
 # ---------------------------------------------------------------------------
-# Channel IDs per language – replace with your real channel IDs
+# Google Sheets setup
+# ---------------------------------------------------------------------------
+SHEET_ID = os.getenv("SHEET_ID", "")
+GOOGLE_CREDENTIALS_JSON = os.getenv("GOOGLE_CREDENTIALS_JSON", "")
+
+def get_sheet():
+    """Connect to Google Sheets and return the worksheet."""
+    try:
+        scopes = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive",
+        ]
+        creds_dict = json.loads(GOOGLE_CREDENTIALS_JSON)
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+        client = gspread.authorize(creds)
+        sheet = client.open_by_key(SHEET_ID).sheet1
+        return sheet
+    except Exception as e:
+        logger.error("Failed to connect to Google Sheets: %s", e)
+        return None
+
+def append_to_sheet(username: str, language: str, claimed: str, date_time: str):
+    """Append a new row to Google Sheet."""
+    try:
+        sheet = get_sheet()
+        if sheet:
+            sheet.append_row([username, language, claimed, date_time])
+            logger.info("Added to Google Sheets: %s", username)
+    except Exception as e:
+        logger.error("Failed to append to Google Sheets: %s", e)
+
+def update_claimed_in_sheet(username: str):
+    """Update claimed status in Google Sheet."""
+    try:
+        sheet = get_sheet()
+        if sheet:
+            cell = sheet.find(username)
+            if cell:
+                sheet.update_cell(cell.row, 3, "Yes")
+                logger.info("Updated claimed status for: %s", username)
+    except Exception as e:
+        logger.error("Failed to update Google Sheets: %s", e)
+
+# ---------------------------------------------------------------------------
+# Channel IDs per language
 # ---------------------------------------------------------------------------
 CHANNEL_IDS = {
     "en": -1002326259934,
@@ -58,7 +104,7 @@ CHANNEL_IDS = {
 }
 
 # ---------------------------------------------------------------------------
-# Discussion Group IDs per language – replace with your real group IDs
+# Discussion Group IDs per language
 # ---------------------------------------------------------------------------
 DISCUSSION_GROUP_IDS = {
     "en": -1002464292560,
@@ -68,7 +114,7 @@ DISCUSSION_GROUP_IDS = {
 }
 
 # ---------------------------------------------------------------------------
-# Promo codes per language – replace with your real promo codes
+# Promo codes per language
 # ---------------------------------------------------------------------------
 PROMO_CODES = {
     "en": "SFTEB",
@@ -77,6 +123,10 @@ PROMO_CODES = {
     "mx": "ODLWDIM",
 }
 
+# ---------------------------------------------------------------------------
+# Conversation states
+# ---------------------------------------------------------------------------
+ASKING_USERNAME = 1
 
 # ---------------------------------------------------------------------------
 # Language content
@@ -89,6 +139,14 @@ LANG_SELECT_TEXT = (
     "🇲🇽 ¡Hola!\n\n"
     "Please choose your language / Scegli la lingua / Choisissez la langue / Elige tu idioma:"
 )
+
+# Message asking for Rolletto username per language
+ASK_USERNAME_MESSAGES = {
+    "en": "Please send me your Rolletto username separately in one text message.",
+    "it": "Per favore inviami il tuo nome utente Rolletto in un messaggio di testo separato.",
+    "fr": "Veuillez m'envoyer votre nom d'utilisateur Rolletto dans un message séparé.",
+    "mx": "Por favor envíame tu nombre de usuario de Rolletto en un mensaje de texto por separado.",
+}
 
 WELCOME_MESSAGES = {
     "en": (
@@ -163,10 +221,10 @@ BONUS_MESSAGES = {
         "mx": "✅ Código promo enviado a tus mensajes directos.",
     },
     "promo_dm": {
-    "en": "🎉 Congratulations! Here is your exclusive promo code:\n\n<code>{code}</code>\n\n<b>Requirements: Your email must be verified in order to claim this bonus.</b>\n\n<b>Additionally, if you have not verified your email yet, you will receive free spins once your verification is completed.</b>\n\nUse it before it expires. Enjoy!",
-    "it": "🎉 Congratulazioni! Ecco il tuo codice promo esclusivo:\n\n<code>{code}</code>\n\n<b>Requisiti: La tua email deve essere verificata per poter richiedere questo bonus.</b>\n\n<b>Inoltre, se non hai ancora verificato la tua email, riceverai i giri gratuiti una volta completata la verifica.</b>\n\nUsalo prima che scada. Buon divertimento!",
-    "fr": "🎉 Félicitations! Voici votre code promo exclusif:\n\n<code>{code}</code>\n\n<b>Conditions: Votre adresse e-mail doit être vérifiée pour pouvoir bénéficier de ce bonus.</b>\n\n<b>De plus, si vous n'avez pas encore vérifié votre e-mail, vous recevrez des tours gratuits une fois la vérification effectuée.</b>\n\nUtilisez-le avant qu'il n'expire. Profitez-en!",
-    "mx": "🎉 ¡Felicidades! Aquí está tu código promo exclusivo:\n\n<code>{code}</code>\n\n<b>Requisitos: Tu correo electrónico debe estar verificado para poder reclamar este bono.</b>\n\n<b>Además, si aún no has verificado tu correo, recibirás giros gratis una vez que se complete la verificación.</b>\n\nÚsalo antes de que expire. ¡Disfrútalo!",
+        "en": "🎉 Congratulations! Here is your exclusive promo code:\n\n<code>{code}</code>\n\n<b>Requirements: Your email must be verified in order to claim this bonus.</b>\n\n<b>Additionally, if you have not verified your email yet, you will receive free spins once your verification is completed.</b>\n\nUse it before it expires. Enjoy!",
+        "it": "🎉 Congratulazioni! Ecco il tuo codice promo esclusivo:\n\n<code>{code}</code>\n\n<b>Requisiti: La tua email deve essere verificata per poter richiedere questo bonus.</b>\n\n<b>Inoltre, se non hai ancora verificato la tua email, riceverai i giri gratuiti una volta completata la verifica.</b>\n\nUsalo prima che scada. Buon divertimento!",
+        "fr": "🎉 Félicitations! Voici votre code promo exclusif:\n\n<code>{code}</code>\n\n<b>Conditions: Votre adresse e-mail doit être vérifiée pour pouvoir bénéficier de ce bonus.</b>\n\n<b>De plus, si vous n'avez pas encore vérifié votre e-mail, vous recevrez des tours gratuits une fois la vérification effectuée.</b>\n\nUtilisez-le avant qu'il n'expire. Profitez-en!",
+        "mx": "🎉 ¡Felicidades! Aquí está tu código promo exclusivo:\n\n<code>{code}</code>\n\n<b>Requisitos: Tu correo electrónico debe estar verificado para poder reclamar este bono.</b>\n\n<b>Además, si aún no has verificado tu correo, recibirás giros gratis una vez que se complete la verificación.</b>\n\nÚsalo antes de que expire. ¡Disfrútalo!",
     },
 }
 
@@ -183,7 +241,8 @@ async def init_db() -> None:
                 user_id       INTEGER PRIMARY KEY,
                 first_seen    REAL NOT NULL,
                 claimed       INTEGER NOT NULL DEFAULT 0,
-                language      TEXT NOT NULL DEFAULT 'en'
+                language      TEXT NOT NULL DEFAULT 'en',
+                rolletto_username TEXT
             )
             """
         )
@@ -195,7 +254,7 @@ async def get_user(user_id: int) -> dict | None:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute(
-            "SELECT user_id, first_seen, claimed, language FROM users WHERE user_id = ?",
+            "SELECT user_id, first_seen, claimed, language, rolletto_username FROM users WHERE user_id = ?",
             (user_id,),
         ) as cursor:
             row = await cursor.fetchone()
@@ -222,6 +281,15 @@ async def set_user_language(user_id: int, language: str) -> None:
         await db.commit()
 
 
+async def save_rolletto_username(user_id: int, username: str) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE users SET rolletto_username = ? WHERE user_id = ?",
+            (username, user_id),
+        )
+        await db.commit()
+
+
 async def mark_claimed(user_id: int) -> None:
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
@@ -239,7 +307,7 @@ async def get_user_language(user_id: int) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Subscription check – checks the correct channel for the user's language
+# Subscription check
 # ---------------------------------------------------------------------------
 
 async def is_subscribed_to_channel(bot, user_id: int, lang: str) -> bool:
@@ -255,7 +323,7 @@ async def is_subscribed_to_channel(bot, user_id: int, lang: str) -> bool:
 # /start command – show language selection buttons
 # ---------------------------------------------------------------------------
 
-async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.effective_user
     await upsert_user(user.id)
 
@@ -275,13 +343,14 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         LANG_SELECT_TEXT,
         reply_markup=reply_markup,
     )
+    return ASKING_USERNAME
 
 
 # ---------------------------------------------------------------------------
-# Callback handler – language button pressed
+# Callback handler – language button pressed, then ask for username
 # ---------------------------------------------------------------------------
 
-async def handle_language_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def handle_language_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
 
@@ -291,15 +360,51 @@ async def handle_language_choice(update: Update, context: ContextTypes.DEFAULT_T
     await upsert_user(user.id)
     await set_user_language(user.id, lang)
 
-    welcome_text = WELCOME_MESSAGES[lang].format(name=user.first_name)
+    # Store language in context for next step
+    context.user_data["lang"] = lang
 
+    # Ask for Rolletto username in the chosen language
     await query.edit_message_text(
+        text=ASK_USERNAME_MESSAGES[lang],
+        parse_mode="HTML",
+    )
+
+    logger.info("User %s chose language: %s", user.id, lang)
+    return ASKING_USERNAME
+
+
+# ---------------------------------------------------------------------------
+# Handle username input from user
+# ---------------------------------------------------------------------------
+
+async def handle_username_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user = update.effective_user
+    rolletto_username = update.message.text.strip()
+
+    # Get language from context or database
+    lang = context.user_data.get("lang") or await get_user_language(user.id)
+
+    # Save username to SQLite database
+    await save_rolletto_username(user.id, rolletto_username)
+
+    # Save to Google Sheets
+    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(
+        None, append_to_sheet, rolletto_username, lang, "No", now_str
+    )
+
+    logger.info("Saved Rolletto username '%s' for user %s", rolletto_username, user.id)
+
+    # Send welcome message with channel link
+    welcome_text = WELCOME_MESSAGES[lang].format(name=user.first_name)
+    await update.message.reply_text(
         text=welcome_text,
         parse_mode="HTML",
         disable_web_page_preview=True,
     )
 
-    logger.info("User %s chose language: %s", user.id, lang)
+    return ConversationHandler.END
 
 
 # ---------------------------------------------------------------------------
@@ -365,7 +470,17 @@ async def handle_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await message.reply_text(BONUS_MESSAGES["no_dm"][lang])
         return
 
+    # Mark as claimed in SQLite
     await mark_claimed(user.id)
+
+    # Update claimed status in Google Sheets
+    user_record_full = await get_user(user.id)
+    if user_record_full and user_record_full.get("rolletto_username"):
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            None, update_claimed_in_sheet, user_record_full["rolletto_username"]
+        )
+
     logger.info("Promo code delivered to user %s in language %s", user.id, lang)
     await message.reply_text(BONUS_MESSAGES["sent"][lang])
 
@@ -414,9 +529,20 @@ async def main() -> None:
 
     app = Application.builder().token(BOT_TOKEN).build()
 
-    app.add_handler(CommandHandler("start", handle_start))
+    # ConversationHandler for /start → language choice → username input
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler("start", handle_start)],
+        states={
+            ASKING_USERNAME: [
+                CallbackQueryHandler(handle_language_choice, pattern="^lang_"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_username_input),
+            ],
+        },
+        fallbacks=[CommandHandler("start", handle_start)],
+    )
+
+    app.add_handler(conv_handler)
     app.add_handler(CommandHandler("stats", handle_stats))
-    app.add_handler(CallbackQueryHandler(handle_language_choice, pattern="^lang_"))
     app.add_handler(
         MessageHandler(
             filters.TEXT & filters.Regex(r"(?i)\bbonus\b"),
