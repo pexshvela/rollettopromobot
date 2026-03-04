@@ -140,7 +140,6 @@ LANG_SELECT_TEXT = (
     "Please choose your language / Scegli la lingua / Choisissez la langue / Elige tu idioma:"
 )
 
-# Message asking for Rolletto username per language
 ASK_USERNAME_MESSAGES = {
     "en": "Please send me your Rolletto username separately in one text message.",
     "it": "Per favore inviami il tuo nome utente Rolletto in un messaggio di testo separato.",
@@ -235,17 +234,25 @@ BONUS_MESSAGES = {
 
 async def init_db() -> None:
     async with aiosqlite.connect(DB_PATH) as db:
+        # Create table if it doesn't exist
         await db.execute(
             """
             CREATE TABLE IF NOT EXISTS users (
-                user_id       INTEGER PRIMARY KEY,
-                first_seen    REAL NOT NULL,
-                claimed       INTEGER NOT NULL DEFAULT 0,
-                language      TEXT NOT NULL DEFAULT 'en',
+                user_id           INTEGER PRIMARY KEY,
+                first_seen        REAL NOT NULL,
+                claimed           INTEGER NOT NULL DEFAULT 0,
+                language          TEXT NOT NULL DEFAULT 'en',
                 rolletto_username TEXT
             )
             """
         )
+        # Migration: add rolletto_username column if it doesn't exist yet
+        # This fixes existing databases that were created without this column
+        try:
+            await db.execute("ALTER TABLE users ADD COLUMN rolletto_username TEXT")
+            logger.info("Migration: added rolletto_username column")
+        except Exception:
+            pass  # Column already exists, ignore the error
         await db.commit()
     logger.info("Database initialised at %s", DB_PATH)
 
