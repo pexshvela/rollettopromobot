@@ -136,7 +136,7 @@ LANG_SELECT_TEXT = (
     "🇬🇧 Hello!\n"
     "🇮🇹 Ciao!\n"
     "🇫🇷 Bonjour!\n"
-    "🇲🇽 ¡Hola!\n\n"
+    "🇪🇸 ¡Hola!\n\n"
     "Please choose your language / Scegli la lingua / Choisissez la langue / Elige tu idioma:"
 )
 
@@ -341,7 +341,7 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         ],
         [
             InlineKeyboardButton("🇫🇷 Français", callback_data="lang_fr"),
-            InlineKeyboardButton("🇲🇽 Español", callback_data="lang_mx"),
+            InlineKeyboardButton("🇪🇸 Español", callback_data="lang_mx"),
         ],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
