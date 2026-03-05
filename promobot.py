@@ -161,7 +161,7 @@ DISCUSSION_GROUP_IDS = {
 # Promo codes per language
 # ---------------------------------------------------------------------------
 PROMO_CODES = {
-    "en": "JJHST",
+    "en": "SJEDFS",
     "it": "ADJSDU",
     "fr": "OADIDMA",
     "mx": "ODLWDIM",
