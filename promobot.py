@@ -81,37 +81,36 @@ def append_to_sheet(username: str, language: str, claimed: str, date_time: str):
     except Exception as e:
         logger.error("Failed to append to Google Sheets: %s", e)
 
-def upsert_sheet_row(old_username: str | None, new_username: str, language: str, claimed: str, date_time: str):
+def upsert_sheet_row(telegram_id: int, new_username: str, language: str, claimed: str, date_time: str):
     """
-    Update the existing row for old_username if found, otherwise append a new row.
-    This prevents duplicates when a user runs /start more than once.
+    Update the existing row for this telegram_id (column E) if found,
+    otherwise write a new row after the last row with actual data.
+    Column layout: A=username, B=language, C=claimed, D=date_time, E=telegram_id
     """
     try:
         sheet = get_sheet()
         if not sheet:
             return
 
-        # Try to find the existing row by the old username first
-        lookup = old_username if old_username else None
-        existing_cell = None
+        # Look up by Telegram ID in column E — the only truly unique identifier
+        telegram_id_str = str(telegram_id)
+        existing_row = None
+        try:
+            col_e_values = sheet.col_values(5)  # column E (1-indexed)
+            if telegram_id_str in col_e_values:
+                existing_row = col_e_values.index(telegram_id_str) + 1  # convert to 1-indexed row
+        except Exception:
+            existing_row = None
 
-        if lookup:
-            try:
-                existing_cell = sheet.find(lookup)
-            except Exception:
-                existing_cell = None
-
-        if existing_cell:
-            # Row already exists — update all columns in place
-            # Using update_cell() per cell to avoid gspread version incompatibilities
-            row = existing_cell.row
-            sheet.update_cell(row, 1, new_username)
-            sheet.update_cell(row, 2, language)
-            sheet.update_cell(row, 3, claimed)
-            sheet.update_cell(row, 4, date_time)
-            logger.info("Updated existing Google Sheets row for: %s → %s", old_username, new_username)
+        if existing_row:
+            # Row already exists — update columns A-D in place, keep E (telegram_id) unchanged
+            sheet.update_cell(existing_row, 1, new_username)
+            sheet.update_cell(existing_row, 2, language)
+            sheet.update_cell(existing_row, 3, claimed)
+            sheet.update_cell(existing_row, 4, date_time)
+            logger.info("Updated existing Google Sheets row %d for telegram_id: %s", existing_row, telegram_id_str)
         else:
-            # No existing row found — write to the next row after the last row with actual data
+            # No existing row — write to the next row after the last row with actual data
             # This avoids gspread's append_row() which appends after ALL rows (including blanks)
             all_values = sheet.get_all_values()
             last_data_row = len([r for r in all_values if any(cell.strip() for cell in r)])
@@ -120,7 +119,8 @@ def upsert_sheet_row(old_username: str | None, new_username: str, language: str,
             sheet.update_cell(next_row, 2, language)
             sheet.update_cell(next_row, 3, claimed)
             sheet.update_cell(next_row, 4, date_time)
-            logger.info("Added new row to Google Sheets at row %d: %s", next_row, new_username)
+            sheet.update_cell(next_row, 5, telegram_id_str)
+            logger.info("Added new row at row %d for telegram_id: %s", next_row, telegram_id_str)
 
     except Exception as e:
         logger.error("Failed to upsert Google Sheets row: %s", e)
@@ -435,28 +435,21 @@ async def handle_username_input(update: Update, context: ContextTypes.DEFAULT_TY
     # Get language from context or database
     lang = context.user_data.get("lang") or await get_user_language(user.id)
 
-    # Fetch existing record BEFORE overwriting, so we can find their old sheet row
+    # Fetch existing record to preserve claimed status
     existing_record = await get_user(user.id)
-    old_username = existing_record.get("rolletto_username") if existing_record else None
 
     # Save new username to SQLite database
     await save_rolletto_username(user.id, new_username)
 
-    # Upsert Google Sheets row:
-    #   - if the user already had a row (old_username exists), update it in place
-    #   - otherwise append a fresh row
+    # Upsert Google Sheets row by Telegram ID (column E) — guaranteed unique per user
     now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    # Preserve claimed status so updating the row doesn't reset it
     claimed_str = "Yes" if (existing_record and existing_record.get("claimed")) else "No"
     loop = asyncio.get_event_loop()
     await loop.run_in_executor(
-        None, upsert_sheet_row, old_username, new_username, lang, claimed_str, now_str
+        None, upsert_sheet_row, user.id, new_username, lang, claimed_str, now_str
     )
 
-    logger.info(
-        "Saved Rolletto username '%s' for user %s (old: %s)",
-        new_username, user.id, old_username,
-    )
+    logger.info("Saved Rolletto username '%s' for telegram_id: %s", new_username, user.id)
 
     # Send welcome message with channel link
     welcome_text = WELCOME_MESSAGES[lang].format(name=user.first_name)
