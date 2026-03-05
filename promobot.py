@@ -103,16 +103,24 @@ def upsert_sheet_row(old_username: str | None, new_username: str, language: str,
 
         if existing_cell:
             # Row already exists — update all columns in place
+            # Using update_cell() per cell to avoid gspread version incompatibilities
             row = existing_cell.row
-            sheet.update(
-                f"A{row}:D{row}",
-                [[new_username, language, claimed, date_time]],
-            )
+            sheet.update_cell(row, 1, new_username)
+            sheet.update_cell(row, 2, language)
+            sheet.update_cell(row, 3, claimed)
+            sheet.update_cell(row, 4, date_time)
             logger.info("Updated existing Google Sheets row for: %s → %s", old_username, new_username)
         else:
-            # No existing row found — safe to append
-            sheet.append_row([new_username, language, claimed, date_time])
-            logger.info("Added new row to Google Sheets: %s", new_username)
+            # No existing row found — write to the next row after the last row with actual data
+            # This avoids gspread's append_row() which appends after ALL rows (including blanks)
+            all_values = sheet.get_all_values()
+            last_data_row = len([r for r in all_values if any(cell.strip() for cell in r)])
+            next_row = last_data_row + 1
+            sheet.update_cell(next_row, 1, new_username)
+            sheet.update_cell(next_row, 2, language)
+            sheet.update_cell(next_row, 3, claimed)
+            sheet.update_cell(next_row, 4, date_time)
+            logger.info("Added new row to Google Sheets at row %d: %s", next_row, new_username)
 
     except Exception as e:
         logger.error("Failed to upsert Google Sheets row: %s", e)
