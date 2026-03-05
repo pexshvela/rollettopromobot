@@ -81,6 +81,42 @@ def append_to_sheet(username: str, language: str, claimed: str, date_time: str):
     except Exception as e:
         logger.error("Failed to append to Google Sheets: %s", e)
 
+def upsert_sheet_row(old_username: str | None, new_username: str, language: str, claimed: str, date_time: str):
+    """
+    Update the existing row for old_username if found, otherwise append a new row.
+    This prevents duplicates when a user runs /start more than once.
+    """
+    try:
+        sheet = get_sheet()
+        if not sheet:
+            return
+
+        # Try to find the existing row by the old username first
+        lookup = old_username if old_username else None
+        existing_cell = None
+
+        if lookup:
+            try:
+                existing_cell = sheet.find(lookup)
+            except Exception:
+                existing_cell = None
+
+        if existing_cell:
+            # Row already exists — update all columns in place
+            row = existing_cell.row
+            sheet.update(
+                f"A{row}:D{row}",
+                [[new_username, language, claimed, date_time]],
+            )
+            logger.info("Updated existing Google Sheets row for: %s → %s", old_username, new_username)
+        else:
+            # No existing row found — safe to append
+            sheet.append_row([new_username, language, claimed, date_time])
+            logger.info("Added new row to Google Sheets: %s", new_username)
+
+    except Exception as e:
+        logger.error("Failed to upsert Google Sheets row: %s", e)
+
 def update_claimed_in_sheet(username: str):
     """Update claimed status in Google Sheet."""
     try:
@@ -386,22 +422,33 @@ async def handle_language_choice(update: Update, context: ContextTypes.DEFAULT_T
 
 async def handle_username_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.effective_user
-    rolletto_username = update.message.text.strip()
+    new_username = update.message.text.strip()
 
     # Get language from context or database
     lang = context.user_data.get("lang") or await get_user_language(user.id)
 
-    # Save username to SQLite database
-    await save_rolletto_username(user.id, rolletto_username)
+    # Fetch existing record BEFORE overwriting, so we can find their old sheet row
+    existing_record = await get_user(user.id)
+    old_username = existing_record.get("rolletto_username") if existing_record else None
 
-    # Save to Google Sheets
+    # Save new username to SQLite database
+    await save_rolletto_username(user.id, new_username)
+
+    # Upsert Google Sheets row:
+    #   - if the user already had a row (old_username exists), update it in place
+    #   - otherwise append a fresh row
     now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    # Preserve claimed status so updating the row doesn't reset it
+    claimed_str = "Yes" if (existing_record and existing_record.get("claimed")) else "No"
     loop = asyncio.get_event_loop()
     await loop.run_in_executor(
-        None, append_to_sheet, rolletto_username, lang, "No", now_str
+        None, upsert_sheet_row, old_username, new_username, lang, claimed_str, now_str
     )
 
-    logger.info("Saved Rolletto username '%s' for user %s", rolletto_username, user.id)
+    logger.info(
+        "Saved Rolletto username '%s' for user %s (old: %s)",
+        new_username, user.id, old_username,
+    )
 
     # Send welcome message with channel link
     welcome_text = WELCOME_MESSAGES[lang].format(name=user.first_name)
