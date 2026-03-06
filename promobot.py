@@ -71,71 +71,84 @@ def get_sheet():
         logger.error("Failed to connect to Google Sheets: %s", e)
         return None
 
-def append_to_sheet(username: str, language: str, claimed: str, date_time: str):
-    """Append a new row to Google Sheet."""
-    try:
-        sheet = get_sheet()
-        if sheet:
-            sheet.append_row([username, language, claimed, date_time])
-            logger.info("Added to Google Sheets: %s", username)
-    except Exception as e:
-        logger.error("Failed to append to Google Sheets: %s", e)
-
-def upsert_sheet_row(telegram_id: int, new_username: str, language: str, claimed: str, date_time: str):
+def upsert_sheet_row(
+    telegram_id: int,
+    rolletto_username: str,
+    language: str,
+    claimed: str,
+    date_time: str,
+    tg_username: str,
+    first_name: str,
+    last_name: str,
+):
     """
     Update the existing row for this telegram_id (column E) if found,
     otherwise write a new row after the last row with actual data.
-    Column layout: A=username, B=language, C=claimed, D=date_time, E=telegram_id
+
+    Column layout:
+      A = Rolletto Username
+      B = Language
+      C = Claimed
+      D = Date Time
+      E = Telegram ID
+      F = Telegram Username (@handle)
+      G = First Name
+      H = Last Name
     """
     try:
         sheet = get_sheet()
         if not sheet:
             return
 
-        # Look up by Telegram ID in column E — the only truly unique identifier
         telegram_id_str = str(telegram_id)
         existing_row = None
         try:
-            col_e_values = sheet.col_values(5)  # column E (1-indexed)
+            col_e_values = sheet.col_values(5)  # column E
             if telegram_id_str in col_e_values:
-                existing_row = col_e_values.index(telegram_id_str) + 1  # convert to 1-indexed row
+                existing_row = col_e_values.index(telegram_id_str) + 1
         except Exception:
             existing_row = None
 
         if existing_row:
-            # Row already exists — update columns A-D in place, keep E (telegram_id) unchanged
-            sheet.update_cell(existing_row, 1, new_username)
+            sheet.update_cell(existing_row, 1, rolletto_username)
             sheet.update_cell(existing_row, 2, language)
             sheet.update_cell(existing_row, 3, claimed)
             sheet.update_cell(existing_row, 4, date_time)
-            logger.info("Updated existing Google Sheets row %d for telegram_id: %s", existing_row, telegram_id_str)
+            # column E (telegram_id) stays unchanged
+            sheet.update_cell(existing_row, 6, tg_username)
+            sheet.update_cell(existing_row, 7, first_name)
+            sheet.update_cell(existing_row, 8, last_name)
+            logger.info("Updated existing row %d for telegram_id: %s", existing_row, telegram_id_str)
         else:
-            # No existing row — write to the next row after the last row with actual data
-            # This avoids gspread's append_row() which appends after ALL rows (including blanks)
             all_values = sheet.get_all_values()
             last_data_row = len([r for r in all_values if any(cell.strip() for cell in r)])
             next_row = last_data_row + 1
-            sheet.update_cell(next_row, 1, new_username)
+            sheet.update_cell(next_row, 1, rolletto_username)
             sheet.update_cell(next_row, 2, language)
             sheet.update_cell(next_row, 3, claimed)
             sheet.update_cell(next_row, 4, date_time)
             sheet.update_cell(next_row, 5, telegram_id_str)
+            sheet.update_cell(next_row, 6, tg_username)
+            sheet.update_cell(next_row, 7, first_name)
+            sheet.update_cell(next_row, 8, last_name)
             logger.info("Added new row at row %d for telegram_id: %s", next_row, telegram_id_str)
 
     except Exception as e:
         logger.error("Failed to upsert Google Sheets row: %s", e)
 
-def update_claimed_in_sheet(username: str):
-    """Update claimed status in Google Sheet."""
+def update_claimed_in_sheet(telegram_id: int):
+    """Update claimed status in Google Sheet by Telegram ID (column E)."""
     try:
         sheet = get_sheet()
         if sheet:
-            cell = sheet.find(username)
-            if cell:
-                sheet.update_cell(cell.row, 3, "Yes")
-                logger.info("Updated claimed status for: %s", username)
+            telegram_id_str = str(telegram_id)
+            col_e_values = sheet.col_values(5)
+            if telegram_id_str in col_e_values:
+                row = col_e_values.index(telegram_id_str) + 1
+                sheet.update_cell(row, 3, "Yes")
+                logger.info("Updated claimed status for telegram_id: %s", telegram_id_str)
     except Exception as e:
-        logger.error("Failed to update Google Sheets: %s", e)
+        logger.error("Failed to update claimed in Google Sheets: %s", e)
 
 # ---------------------------------------------------------------------------
 # Channel IDs per language
@@ -278,7 +291,6 @@ BONUS_MESSAGES = {
 
 async def init_db() -> None:
     async with aiosqlite.connect(DB_PATH) as db:
-        # Create table if it doesn't exist
         await db.execute(
             """
             CREATE TABLE IF NOT EXISTS users (
@@ -286,17 +298,25 @@ async def init_db() -> None:
                 first_seen        REAL NOT NULL,
                 claimed           INTEGER NOT NULL DEFAULT 0,
                 language          TEXT NOT NULL DEFAULT 'en',
-                rolletto_username TEXT
+                rolletto_username TEXT,
+                tg_username       TEXT,
+                first_name        TEXT,
+                last_name         TEXT
             )
             """
         )
-        # Migration: add rolletto_username column if it doesn't exist yet
-        # This fixes existing databases that were created without this column
-        try:
-            await db.execute("ALTER TABLE users ADD COLUMN rolletto_username TEXT")
-            logger.info("Migration: added rolletto_username column")
-        except Exception:
-            pass  # Column already exists, ignore the error
+        # Migrations: add columns if they don't exist yet (for existing databases)
+        for col in [
+            ("rolletto_username", "TEXT"),
+            ("tg_username", "TEXT"),
+            ("first_name", "TEXT"),
+            ("last_name", "TEXT"),
+        ]:
+            try:
+                await db.execute(f"ALTER TABLE users ADD COLUMN {col[0]} {col[1]}")
+                logger.info("Migration: added %s column", col[0])
+            except Exception:
+                pass  # Column already exists
         await db.commit()
     logger.info("Database initialised at %s", DB_PATH)
 
@@ -305,20 +325,33 @@ async def get_user(user_id: int) -> dict | None:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute(
-            "SELECT user_id, first_seen, claimed, language, rolletto_username FROM users WHERE user_id = ?",
+            """SELECT user_id, first_seen, claimed, language,
+                      rolletto_username, tg_username, first_name, last_name
+               FROM users WHERE user_id = ?""",
             (user_id,),
         ) as cursor:
             row = await cursor.fetchone()
             return dict(row) if row else None
 
 
-async def upsert_user(user_id: int) -> dict:
+async def upsert_user(user_id: int, tg_username: str = None, first_name: str = None, last_name: str = None) -> dict:
     now = datetime.now(timezone.utc).timestamp()
     async with aiosqlite.connect(DB_PATH) as db:
+        # Insert if not exists
         await db.execute(
             "INSERT OR IGNORE INTO users (user_id, first_seen, claimed, language) VALUES (?, ?, 0, 'en')",
             (user_id, now),
         )
+        # Always update Telegram profile info when provided
+        if tg_username is not None or first_name is not None or last_name is not None:
+            await db.execute(
+                """UPDATE users SET
+                    tg_username = COALESCE(?, tg_username),
+                    first_name  = COALESCE(?, first_name),
+                    last_name   = COALESCE(?, last_name)
+                   WHERE user_id = ?""",
+                (tg_username, first_name, last_name, user_id),
+            )
         await db.commit()
     return await get_user(user_id)
 
@@ -376,7 +409,12 @@ async def is_subscribed_to_channel(bot, user_id: int, lang: str) -> bool:
 
 async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.effective_user
-    await upsert_user(user.id)
+    await upsert_user(
+        user.id,
+        tg_username=f"@{user.username}" if user.username else "",
+        first_name=user.first_name or "",
+        last_name=user.last_name or "",
+    )
 
     keyboard = [
         [
@@ -406,15 +444,18 @@ async def handle_language_choice(update: Update, context: ContextTypes.DEFAULT_T
     await query.answer()
 
     user = update.effective_user
-    lang = query.data.replace("lang_", "")  # "lang_en" → "en"
+    lang = query.data.replace("lang_", "")
 
-    await upsert_user(user.id)
+    await upsert_user(
+        user.id,
+        tg_username=f"@{user.username}" if user.username else "",
+        first_name=user.first_name or "",
+        last_name=user.last_name or "",
+    )
     await set_user_language(user.id, lang)
 
-    # Store language in context for next step
     context.user_data["lang"] = lang
 
-    # Ask for Rolletto username in the chosen language
     await query.edit_message_text(
         text=ASK_USERNAME_MESSAGES[lang],
         parse_mode="HTML",
@@ -432,26 +473,34 @@ async def handle_username_input(update: Update, context: ContextTypes.DEFAULT_TY
     user = update.effective_user
     new_username = update.message.text.strip()
 
-    # Get language from context or database
     lang = context.user_data.get("lang") or await get_user_language(user.id)
 
     # Fetch existing record to preserve claimed status
     existing_record = await get_user(user.id)
 
-    # Save new username to SQLite database
+    # Save rolletto username to DB
     await save_rolletto_username(user.id, new_username)
 
-    # Upsert Google Sheets row by Telegram ID (column E) — guaranteed unique per user
+    # Build Telegram profile fields
+    tg_username = f"@{user.username}" if user.username else ""
+    first_name = user.first_name or ""
+    last_name = user.last_name or ""
+
+    # Update Telegram profile info in DB too
+    await upsert_user(user.id, tg_username=tg_username, first_name=first_name, last_name=last_name)
+
+    # Upsert Google Sheets row
     now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     claimed_str = "Yes" if (existing_record and existing_record.get("claimed")) else "No"
     loop = asyncio.get_event_loop()
     await loop.run_in_executor(
-        None, upsert_sheet_row, user.id, new_username, lang, claimed_str, now_str
+        None, upsert_sheet_row,
+        user.id, new_username, lang, claimed_str, now_str,
+        tg_username, first_name, last_name
     )
 
-    logger.info("Saved Rolletto username '%s' for telegram_id: %s", new_username, user.id)
+    logger.info("Saved username '%s' for telegram_id: %s (@%s)", new_username, user.id, user.username)
 
-    # Send welcome message with channel link
     welcome_text = WELCOME_MESSAGES[lang].format(name=user.first_name)
     await update.message.reply_text(
         text=welcome_text,
@@ -471,33 +520,32 @@ async def handle_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     user = update.effective_user
     chat = update.effective_chat
 
-    # Only act inside one of the registered discussion groups
     if chat.id not in DISCUSSION_GROUP_IDS.values():
         return
 
     logger.info("'bonus' received from user %s (%s)", user.id, user.full_name)
 
-    # Auto-detect language based on which group the message was sent in
     lang = next((l for l, gid in DISCUSSION_GROUP_IDS.items() if gid == chat.id), "en")
 
-    # Save detected language to user's profile
-    await upsert_user(user.id)
+    # Save/update Telegram profile info on every bonus attempt
+    await upsert_user(
+        user.id,
+        tg_username=f"@{user.username}" if user.username else "",
+        first_name=user.first_name or "",
+        last_name=user.last_name or "",
+    )
     await set_user_language(user.id, lang)
 
-    # Step 1 – Check subscription to the correct channel for this language
     if not await is_subscribed_to_channel(context.bot, user.id, lang):
         await message.reply_text(BONUS_MESSAGES["not_subscribed"][lang])
         return
 
-    # Step 2 – Record first interaction
     user_record = await upsert_user(user.id)
 
-    # Step 4 – Already claimed?
     if user_record["claimed"]:
         await message.reply_text(BONUS_MESSAGES["already_claimed"][lang])
         return
 
-    # Step 3 – Timing checks
     now = datetime.now(timezone.utc)
     first_seen = datetime.fromtimestamp(user_record["first_seen"], tz=timezone.utc)
     age: timedelta = now - first_seen
@@ -514,7 +562,6 @@ async def handle_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         )
         return
 
-    # Eligible – send promo code via DM in user's language
     try:
         await context.bot.send_message(
             chat_id=user.id,
@@ -525,16 +572,11 @@ async def handle_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await message.reply_text(BONUS_MESSAGES["no_dm"][lang])
         return
 
-    # Mark as claimed in SQLite
     await mark_claimed(user.id)
 
-    # Update claimed status in Google Sheets
-    user_record_full = await get_user(user.id)
-    if user_record_full and user_record_full.get("rolletto_username"):
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(
-            None, update_claimed_in_sheet, user_record_full["rolletto_username"]
-        )
+    # Update claimed status in sheet by Telegram ID
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, update_claimed_in_sheet, user.id)
 
     logger.info("Promo code delivered to user %s in language %s", user.id, lang)
     await message.reply_text(BONUS_MESSAGES["sent"][lang])
@@ -584,7 +626,6 @@ async def main() -> None:
 
     app = Application.builder().token(BOT_TOKEN).build()
 
-    # ConversationHandler for /start → language choice → username input
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", handle_start)],
         states={
