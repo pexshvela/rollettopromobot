@@ -81,20 +81,6 @@ def upsert_sheet_row(
     first_name: str,
     last_name: str,
 ):
-    """
-    Update the existing row for this telegram_id (column E) if found,
-    otherwise write a new row after the last row with actual data.
-
-    Column layout:
-      A = Rolletto Username
-      B = Language
-      C = Claimed
-      D = Date Time
-      E = Telegram ID
-      F = Telegram Username (@handle)
-      G = First Name
-      H = Last Name
-    """
     try:
         sheet = get_sheet()
         if not sheet:
@@ -103,7 +89,7 @@ def upsert_sheet_row(
         telegram_id_str = str(telegram_id)
         existing_row = None
         try:
-            col_e_values = sheet.col_values(5)  # column E
+            col_e_values = sheet.col_values(5)
             if telegram_id_str in col_e_values:
                 existing_row = col_e_values.index(telegram_id_str) + 1
         except Exception:
@@ -114,7 +100,6 @@ def upsert_sheet_row(
             sheet.update_cell(existing_row, 2, language)
             sheet.update_cell(existing_row, 3, claimed)
             sheet.update_cell(existing_row, 4, date_time)
-            # column E (telegram_id) stays unchanged
             sheet.update_cell(existing_row, 6, tg_username)
             sheet.update_cell(existing_row, 7, first_name)
             sheet.update_cell(existing_row, 8, last_name)
@@ -305,7 +290,6 @@ async def init_db() -> None:
             )
             """
         )
-        # Migrations: add columns if they don't exist yet (for existing databases)
         for col in [
             ("rolletto_username", "TEXT"),
             ("tg_username", "TEXT"),
@@ -316,7 +300,7 @@ async def init_db() -> None:
                 await db.execute(f"ALTER TABLE users ADD COLUMN {col[0]} {col[1]}")
                 logger.info("Migration: added %s column", col[0])
             except Exception:
-                pass  # Column already exists
+                pass
         await db.commit()
     logger.info("Database initialised at %s", DB_PATH)
 
@@ -337,12 +321,10 @@ async def get_user(user_id: int) -> dict | None:
 async def upsert_user(user_id: int, tg_username: str = None, first_name: str = None, last_name: str = None) -> dict:
     now = datetime.now(timezone.utc).timestamp()
     async with aiosqlite.connect(DB_PATH) as db:
-        # Insert if not exists
         await db.execute(
             "INSERT OR IGNORE INTO users (user_id, first_seen, claimed, language) VALUES (?, ?, 0, 'en')",
             (user_id, now),
         )
-        # Always update Telegram profile info when provided
         if tg_username is not None or first_name is not None or last_name is not None:
             await db.execute(
                 """UPDATE users SET
@@ -374,10 +356,31 @@ async def save_rolletto_username(user_id: int, username: str) -> None:
         await db.commit()
 
 
-async def mark_claimed(user_id: int) -> None:
+# ---------------------------------------------------------------------------
+# FIX: Atomic claim — only ONE process/instance can ever win this.
+# Uses "UPDATE ... WHERE claimed = 0" so if two requests race,
+# only the first one gets rowcount=1. The second gets rowcount=0 and stops.
+# ---------------------------------------------------------------------------
+async def try_claim(user_id: int) -> bool:
+    """
+    Atomically set claimed=1 only if it is currently 0.
+    Returns True if this call successfully claimed (won the race).
+    Returns False if already claimed by a previous request.
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "UPDATE users SET claimed = 1 WHERE user_id = ? AND claimed = 0",
+            (user_id,),
+        )
+        await db.commit()
+        return cursor.rowcount == 1
+
+
+async def unclaim(user_id: int) -> None:
+    """Roll back a claim — used when the DM send fails after claiming."""
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
-            "UPDATE users SET claimed = 1 WHERE user_id = ?",
+            "UPDATE users SET claimed = 0 WHERE user_id = ?",
             (user_id,),
         )
         await db.commit()
@@ -475,21 +478,16 @@ async def handle_username_input(update: Update, context: ContextTypes.DEFAULT_TY
 
     lang = context.user_data.get("lang") or await get_user_language(user.id)
 
-    # Fetch existing record to preserve claimed status
     existing_record = await get_user(user.id)
 
-    # Save rolletto username to DB
     await save_rolletto_username(user.id, new_username)
 
-    # Build Telegram profile fields
     tg_username = f"@{user.username}" if user.username else ""
     first_name = user.first_name or ""
     last_name = user.last_name or ""
 
-    # Update Telegram profile info in DB too
     await upsert_user(user.id, tg_username=tg_username, first_name=first_name, last_name=last_name)
 
-    # Upsert Google Sheets row
     now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     claimed_str = "Yes" if (existing_record and existing_record.get("claimed")) else "No"
     loop = asyncio.get_event_loop()
@@ -527,7 +525,6 @@ async def handle_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     lang = next((l for l, gid in DISCUSSION_GROUP_IDS.items() if gid == chat.id), "en")
 
-    # Save/update Telegram profile info on every bonus attempt
     await upsert_user(
         user.id,
         tg_username=f"@{user.username}" if user.username else "",
@@ -540,9 +537,11 @@ async def handle_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await message.reply_text(BONUS_MESSAGES["not_subscribed"][lang])
         return
 
-    user_record = await upsert_user(user.id)
+    # Read current user state for age checks
+    user_record = await get_user(user.id)
 
-    if user_record["claimed"]:
+    # Fast-path: already claimed (avoids unnecessary DB write attempt)
+    if user_record and user_record["claimed"]:
         await message.reply_text(BONUS_MESSAGES["already_claimed"][lang])
         return
 
@@ -562,6 +561,19 @@ async def handle_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         )
         return
 
+    # -----------------------------------------------------------------------
+    # FIX: Atomically claim the slot BEFORE sending the DM.
+    # If two instances or two rapid messages race here, only ONE wins.
+    # The loser gets claimed=False and replies "already claimed".
+    # -----------------------------------------------------------------------
+    claimed = await try_claim(user.id)
+    if not claimed:
+        logger.info("User %s already claimed (lost atomic race)", user.id)
+        await message.reply_text(BONUS_MESSAGES["already_claimed"][lang])
+        return
+
+    # Now attempt to send the DM. If it fails, roll back the claim so the
+    # user can try again after starting the bot in DM.
     try:
         await context.bot.send_message(
             chat_id=user.id,
@@ -569,12 +581,13 @@ async def handle_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             parse_mode="HTML",
         )
     except Forbidden:
+        # DM failed — undo the claim so they can retry after starting the bot
+        await unclaim(user.id)
+        logger.warning("DM failed for user %s — claim rolled back", user.id)
         await message.reply_text(BONUS_MESSAGES["no_dm"][lang])
         return
 
-    await mark_claimed(user.id)
-
-    # Update claimed status in sheet by Telegram ID
+    # Update Google Sheets
     loop = asyncio.get_event_loop()
     await loop.run_in_executor(None, update_claimed_in_sheet, user.id)
 
