@@ -47,7 +47,7 @@ if not BOT_TOKEN:
 ADMIN_ID: int = int(os.getenv("ADMIN_ID", "0"))
 MIN_AGE_MINUTES: int = 10
 MAX_AGE_HOURS: int = 24
-DB_PATH: str = os.getenv("DATABASE_URL", "promo_bot.db")
+DB_PATH: str = os.getenv("DB_PATH", "promo_bot.db")
 
 # ---------------------------------------------------------------------------
 # Google Sheets setup
@@ -120,6 +120,32 @@ def upsert_sheet_row(
 
     except Exception as e:
         logger.error("Failed to upsert Google Sheets row: %s", e)
+
+def restore_claimed_from_sheet() -> list[int]:
+    """
+    Read Google Sheets and return a list of telegram_ids where claimed = 'Yes'.
+    Called once at startup to rebuild the DB after a Railway redeploy wipes it.
+    """
+    try:
+        sheet = get_sheet()
+        if not sheet:
+            return []
+        all_rows = sheet.get_all_values()
+        claimed_ids = []
+        for row in all_rows[1:]:  # skip header row if any
+            try:
+                claimed_col = row[2].strip().lower() if len(row) > 2 else ""
+                telegram_id_col = row[4].strip() if len(row) > 4 else ""
+                if claimed_col == "yes" and telegram_id_col.isdigit():
+                    claimed_ids.append(int(telegram_id_col))
+            except Exception:
+                continue
+        logger.info("Restored %d claimed users from Google Sheets", len(claimed_ids))
+        return claimed_ids
+    except Exception as e:
+        logger.error("Failed to restore claimed from Google Sheets: %s", e)
+        return []
+
 
 def update_claimed_in_sheet(telegram_id: int):
     """Update claimed status in Google Sheet by Telegram ID (column E)."""
@@ -356,11 +382,6 @@ async def save_rolletto_username(user_id: int, username: str) -> None:
         await db.commit()
 
 
-# ---------------------------------------------------------------------------
-# FIX: Atomic claim — only ONE process/instance can ever win this.
-# Uses "UPDATE ... WHERE claimed = 0" so if two requests race,
-# only the first one gets rowcount=1. The second gets rowcount=0 and stops.
-# ---------------------------------------------------------------------------
 async def try_claim(user_id: int) -> bool:
     """
     Atomically set claimed=1 only if it is currently 0.
@@ -537,10 +558,8 @@ async def handle_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await message.reply_text(BONUS_MESSAGES["not_subscribed"][lang])
         return
 
-    # Read current user state for age checks
     user_record = await get_user(user.id)
 
-    # Fast-path: already claimed (avoids unnecessary DB write attempt)
     if user_record and user_record["claimed"]:
         await message.reply_text(BONUS_MESSAGES["already_claimed"][lang])
         return
@@ -561,19 +580,12 @@ async def handle_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         )
         return
 
-    # -----------------------------------------------------------------------
-    # FIX: Atomically claim the slot BEFORE sending the DM.
-    # If two instances or two rapid messages race here, only ONE wins.
-    # The loser gets claimed=False and replies "already claimed".
-    # -----------------------------------------------------------------------
     claimed = await try_claim(user.id)
     if not claimed:
         logger.info("User %s already claimed (lost atomic race)", user.id)
         await message.reply_text(BONUS_MESSAGES["already_claimed"][lang])
         return
 
-    # Now attempt to send the DM. If it fails, roll back the claim so the
-    # user can try again after starting the bot in DM.
     try:
         await context.bot.send_message(
             chat_id=user.id,
@@ -581,13 +593,11 @@ async def handle_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             parse_mode="HTML",
         )
     except Forbidden:
-        # DM failed — undo the claim so they can retry after starting the bot
         await unclaim(user.id)
         logger.warning("DM failed for user %s — claim rolled back", user.id)
         await message.reply_text(BONUS_MESSAGES["no_dm"][lang])
         return
 
-    # Update Google Sheets
     loop = asyncio.get_event_loop()
     await loop.run_in_executor(None, update_claimed_in_sheet, user.id)
 
@@ -636,6 +646,25 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 
 async def main() -> None:
     await init_db()
+
+    # Restore claimed statuses from Google Sheets in case the DB was wiped by a redeploy.
+    # This runs once at startup and marks everyone who already claimed as claimed=1 in the DB.
+    loop = asyncio.get_event_loop()
+    claimed_ids = await loop.run_in_executor(None, restore_claimed_from_sheet)
+    if claimed_ids:
+        async with aiosqlite.connect(DB_PATH) as db:
+            for uid in claimed_ids:
+                # Insert a minimal row if user not yet in DB, then mark claimed
+                await db.execute(
+                    "INSERT OR IGNORE INTO users (user_id, first_seen, claimed, language) VALUES (?, ?, 1, 'en')",
+                    (uid, datetime.now(timezone.utc).timestamp()),
+                )
+                await db.execute(
+                    "UPDATE users SET claimed = 1 WHERE user_id = ?",
+                    (uid,),
+                )
+            await db.commit()
+        logger.info("Startup restore complete: %d users marked as claimed", len(claimed_ids))
 
     app = Application.builder().token(BOT_TOKEN).build()
 
