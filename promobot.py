@@ -168,7 +168,7 @@ CHANNEL_IDS = {
     "en": -1002326259934,
     "it": -1003220500138,
     "fr": -1003471986771,
-    "mx": -1003389432490,
+    "mx": -1002326259934,  # Spanish users join the English channel
 }
 
 # ---------------------------------------------------------------------------
@@ -178,7 +178,7 @@ DISCUSSION_GROUP_IDS = {
     "en": -1002464292560,
     "it": -1003255978169,
     "fr": -1003434078194,
-    "mx": -1003765666609,
+    "mx": -1002464292560,  # Spanish users write bonus in the English discussion group
 }
 
 # ---------------------------------------------------------------------------
@@ -188,7 +188,7 @@ PROMO_CODES = {
     "en": "SDAVES",
     "it": "ADJSDU",
     "fr": "OADIDMA",
-    "mx": "ODLWDIM",
+    "mx": "SDAVES",  # Spanish users receive the English promo code
 }
 
 # ---------------------------------------------------------------------------
@@ -246,7 +246,7 @@ WELCOME_MESSAGES = {
         "Sigue a Rolletto en nuestras plataformas y mantente al día con las últimas promociones, noticias y recompensas\n\n"
         "<b>Luego ve los comentarios de cualquier publicación y envía la palabra \"bonus\" para reclamar tu código promo.</b>\n\n"
         "<b>✨Únete primero a nuestro canal:</b>\n\n"
-        "👉 <a href='https://t.me/+6I0ChBGTgoRmNzAy'>Haz clic aquí para unirte al canal</a>"
+        "👉 <a href='https://t.me/+9jS0DgDO_KI5YzYy'>Haz clic aquí para unirte al canal</a>"
     ),
 }
 
