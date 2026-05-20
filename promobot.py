@@ -185,7 +185,7 @@ DISCUSSION_GROUP_IDS = {
 # Promo codes per language
 # ---------------------------------------------------------------------------
 PROMO_CODES = {
-    "en": "SDAVES",
+    "en": "JVUTJF",
     "it": "ADJSDU",
     "fr": "OADIDMA",
     "mx": "SDAVES",  # Spanish users receive the English promo code
