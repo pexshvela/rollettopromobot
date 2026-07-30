@@ -222,7 +222,7 @@ WELCOME_MESSAGES = {
         "Follow Rolletto on our platforms and stay updated with the latest promotions, news, and rewards\n\n"
         "<b>Then go to the comments on any post and send the word \"bonus\" to claim your promo code.</b>\n\n"
         "<b>✨Join our channel first:</b>\n\n"
-        "👉 <a href='https://t.me/+9jS0DgDO_KI5YzYy'>Click here to join the channel</a>"
+        "👉 <a href='https://t.me/rollettotg'>Click here to join the channel</a>"
     ),
     "it": (
         "👋 Benvenuto, {name}!\n\n"
