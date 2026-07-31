@@ -230,7 +230,7 @@ WELCOME_MESSAGES = {
         "Segui Rolletto sulle nostre piattaforme e rimani aggiornato con le ultime promozioni, notizie e premi\n\n"
         "<b>Poi vai nei commenti di qualsiasi post e invia la parola \"bonus\" per ricevere il tuo codice promo.</b>\n\n"
         "<b>✨Unisciti prima al nostro canale:</b>\n\n"
-        "👉 <a href='https://t.me/+Fkw3DMpmZE1hYzYy'>Clicca qui per unirti al canale</a>"
+        "👉 <a href='https://t.me/rollettoitaly'>Clicca qui per unirti al canale</a>"
     ),
     "fr": (
         "👋 Bienvenue, {name}!\n\n"
@@ -238,7 +238,7 @@ WELCOME_MESSAGES = {
         "Suivez Rolletto sur nos plateformes et restez informé des dernières promotions, actualités et récompenses\n\n"
         "<b>Ensuite, allez dans les commentaires de n'importe quel post et envoyez le mot \"bonus\" pour recevoir votre code promo.</b>\n\n"
         "<b>✨Rejoignez d'abord notre chaîne:</b>\n\n"
-        "👉 <a href='https://t.me/+-8aE5nJOGSsxZjdi'>Cliquez ici pour rejoindre la chaîne</a>"
+        "👉 <a href='https://t.me/rollettofrance'>Cliquez ici pour rejoindre la chaîne</a>"
     ),
     "mx": (
         "👋 ¡Bienvenido, {name}!\n\n"
@@ -246,7 +246,7 @@ WELCOME_MESSAGES = {
         "Sigue a Rolletto en nuestras plataformas y mantente al día con las últimas promociones, noticias y recompensas\n\n"
         "<b>Luego ve los comentarios de cualquier publicación y envía la palabra \"bonus\" para reclamar tu código promo.</b>\n\n"
         "<b>✨Únete primero a nuestro canal:</b>\n\n"
-        "👉 <a href='https://t.me/+9jS0DgDO_KI5YzYy'>Haz clic aquí para unirte al canal</a>"
+        "👉 <a href='https://t.me/rollettotg'>Haz clic aquí para unirte al canal</a>"
     ),
 }
 
